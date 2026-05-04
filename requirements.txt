@@ -1,0 +1,22 @@
+# Core ML/AI
+torch>=2.0.0
+torchaudio>=2.0.0
+
+# ASR - Whisper
+openai-whisper
+
+# Machine Translation
+deep-translator
+
+# TTS - Microsoft Edge Neural TTS
+edge-tts
+
+# Web Interface
+gradio>=4.0.0
+
+# Audio processing
+soundfile
+numpy
+
+# Async support (needed by edge-tts)
+asyncio
