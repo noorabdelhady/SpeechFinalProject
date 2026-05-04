@@ -12,6 +12,20 @@ Pipeline:
 import asyncio
 import os
 import tempfile
+import threading
+
+# ---------------------------------------------------------------------------
+# Inject bundled FFmpeg (from imageio-ffmpeg) into PATH so Whisper can find it
+# without requiring a system-level FFmpeg installation.
+# ---------------------------------------------------------------------------
+try:
+    import imageio_ffmpeg
+    _ffmpeg_dir = os.path.dirname(imageio_ffmpeg.get_ffmpeg_exe())
+    if _ffmpeg_dir not in os.environ.get("PATH", ""):
+        os.environ["PATH"] = _ffmpeg_dir + os.pathsep + os.environ.get("PATH", "")
+    print(f"[FFmpeg] Using bundled FFmpeg at: {imageio_ffmpeg.get_ffmpeg_exe()}")
+except Exception as e:
+    print(f"[FFmpeg] Warning: Could not inject bundled FFmpeg: {e}")
 
 import whisper
 from deep_translator import GoogleTranslator
@@ -70,13 +84,39 @@ def transcribe_audio(audio_path: str, source_language: str) -> str:
     Returns:
         Transcribed text string.
     """
+    import os
+    import whisper
+    import whisper.audio
+    import imageio_ffmpeg
+
+    # Ensure file exists
+    if not audio_path or not os.path.exists(audio_path):
+        raise FileNotFoundError(f"Audio file not found: {audio_path}")
+
+    # Force Whisper to use bundled FFmpeg (fixes WinError 2)
+    ffmpeg_path = imageio_ffmpeg.get_ffmpeg_exe()
+    whisper.audio.FFMPEG_BINARY = ffmpeg_path
+
+    print(f"[ASR] Using FFmpeg at: {ffmpeg_path}")
+
+    # Load model
     model = _get_whisper_model()
+
+    # Language mapping
     lang_code = WHISPER_LANG_MAP.get(source_language, "en")
 
     print(f"[ASR] Transcribing audio (language='{lang_code}') …")
-    result = model.transcribe(audio_path, language=lang_code)
+
+    # Transcribe
+    result = model.transcribe(
+        audio_path,
+        language=lang_code,
+        fp16=False  # safer for CPU
+    )
+
     text = result["text"].strip()
     print(f"[ASR] Transcription: {text}")
+
     return text
 
 
@@ -119,29 +159,59 @@ async def _synthesize_async(text: str, voice: str, output_path: str) -> None:
     await communicate.save(output_path)
 
 
+def _run_async(coro):
+    """Run an async coroutine safely regardless of whether an event loop is running."""
+    result = [None]
+    exception = [None]
+
+    def _target():
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            result[0] = loop.run_until_complete(coro)
+        except Exception as e:
+            exception[0] = e
+        finally:
+            loop.close()
+
+    t = threading.Thread(target=_target)
+    t.start()
+    t.join()
+    if exception[0]:
+        raise exception[0]
+    return result[0]
+
+
 def generate_audio(text: str, target_language: str, output_path: str = None) -> str:
-    """
-    Generate speech audio from text using Microsoft Edge Neural TTS.
+    import os
+    import time
 
-    Args:
-        text:             The text to synthesise.
-        target_language:  'English' or 'Arabic'.
-        output_path:      Where to save the .mp3 file. A temp file is used if None.
-
-    Returns:
-        Path to the generated audio file.
-    """
     voice = TTS_VOICE_MAP.get(target_language, "en-US-JennyNeural")
 
-    if output_path is None:
-        tmp = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False)
-        output_path = tmp.name
-        tmp.close()
+    # Ensure stable output directory
+    save_dir = "data/output"
+    os.makedirs(save_dir, exist_ok=True)
 
-    print(f"[TTS] Synthesising speech with voice '{voice}' …")
-    asyncio.run(_synthesize_async(text, voice, output_path))
-    print(f"[TTS] Audio saved to: {output_path}")
-    return output_path
+    # Create stable file path
+    filename = f"output_{int(time.time())}.mp3"
+    output_path = os.path.join(save_dir, filename)
+
+    print(f"[TTS] Saving audio to: {output_path}")
+    print(f"[TTS] Using voice: {voice}")
+
+    try:
+        _run_async(_synthesize_async(text, voice, output_path))
+
+        # Verify file exists
+        if not os.path.exists(output_path):
+            raise FileNotFoundError("TTS output file was not created.")
+
+        print(f"[TTS] Audio saved successfully.")
+        return output_path
+
+    except Exception as e:
+        print(f"[TTS ERROR]: {e}")
+        raise
 
 
 # ---------------------------------------------------------------------------

@@ -5,6 +5,9 @@ torchaudio>=2.0.0
 # ASR - Whisper
 openai-whisper
 
+# FFmpeg bundled (no system install required)
+imageio-ffmpeg
+
 # Machine Translation
 deep-translator
 
@@ -17,6 +20,3 @@ gradio>=4.0.0
 # Audio processing
 soundfile
 numpy
-
-# Async support (needed by edge-tts)
-asyncio

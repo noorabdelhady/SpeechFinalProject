@@ -200,36 +200,45 @@ textarea, input[type="text"] {
 # ---------------------------------------------------------------------------
 
 def run_pipeline(audio_input, source_lang, target_lang):
-    """Main Gradio handler: runs ASR → MT → TTS and returns results."""
+    import os
+    import shutil
+    import time
+
+    print("DEBUG original audio_input:", audio_input)
+
     if audio_input is None:
-        return (
-            "",
-            "",
-            None,
-            "⚠️ Please record or upload an audio file first.",
-        )
+        return "", "", None, "⚠️ No audio provided."
 
     if source_lang == target_lang:
-        return (
-            "",
-            "",
-            None,
-            "⚠️ Source and target languages must be different.",
-        )
+        return "", "", None, "⚠️ Languages must differ."
 
     try:
-        transcribed, translated, output_audio = speech_to_speech(
-            audio_input, source_lang, target_lang
-        )
-        status = (
-            f"✅ Done! "
-            f"Transcribed {len(transcribed.split())} words → "
-            f"Translated → Audio generated."
-        )
-        return transcribed, translated, output_audio, status
+        # Ensure destination folder exists
+        save_dir = "data/audio"
+        os.makedirs(save_dir, exist_ok=True)
 
-    except Exception as exc:
-        return "", "", None, f"❌ Error: {str(exc)}"
+        # Wait briefly to ensure file is fully written
+        time.sleep(1)
+
+        # Create a stable filename
+        filename = f"input_{int(time.time())}.wav"
+        stable_path = os.path.join(save_dir, filename)
+
+        # Copy file to stable location
+        shutil.copy(audio_input, stable_path)
+
+        print("DEBUG stable_path:", stable_path)
+        print("FILE EXISTS:", os.path.exists(stable_path))
+
+        # Run pipeline with stable file
+        transcribed, translated, output_audio = speech_to_speech(
+            stable_path, source_lang, target_lang
+        )
+
+        return transcribed, translated, output_audio, "✅ Done!"
+
+    except Exception as e:
+        return "", "", None, f"❌ Error: {str(e)}"
 
 
 def clear_all():
@@ -282,14 +291,7 @@ EXAMPLES_AR = [
 ]
 
 
-with gr.Blocks(
-    css=custom_css,
-    title="Speech-to-Speech Translation | EN ↔ AR",
-    theme=gr.themes.Base(
-        primary_hue="violet",
-        neutral_hue="slate",
-    ),
-) as demo:
+with gr.Blocks(title="Speech-to-Speech Translation | EN ↔ AR") as demo:
 
     # ── Header ──────────────────────────────────────────────────────────────
     gr.HTML(HEADER_HTML)
@@ -312,6 +314,7 @@ with gr.Blocks(
                 sources=["microphone", "upload"],
                 type="filepath",
                 label="Record or Upload Audio",
+                format="wav"
             )
 
             target_lang = gr.Dropdown(
@@ -410,7 +413,11 @@ with gr.Blocks(
 if __name__ == "__main__":
     demo.launch(
         server_name="0.0.0.0",
-        server_port=7860,
         share=False,
         inbrowser=True,
+        css=custom_css,
+        theme=gr.themes.Base(
+            primary_hue="violet",
+            neutral_hue="slate",
+        ),
     )
