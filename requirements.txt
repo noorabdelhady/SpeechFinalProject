@@ -11,8 +11,11 @@ imageio-ffmpeg
 # Machine Translation
 deep-translator
 
-# TTS - Microsoft Edge Neural TTS
+# TTS - Microsoft Edge Neural TTS (fallback)
 edge-tts
+
+# TTS - Voice Cloning (XTTS v2 zero-shot)
+coqui-tts
 
 # Web Interface
 gradio>=4.0.0

@@ -235,7 +235,21 @@ def run_pipeline(audio_input, source_lang, target_lang):
             stable_path, source_lang, target_lang
         )
 
-        return transcribed, translated, output_audio, "✅ Done!"
+        # Small delay to ensure file is fully released by XTTS/OS before Gradio reads it
+        time.sleep(1.0)
+        
+        # Ensure path is absolute for Gradio stability
+        if output_audio and os.path.exists(output_audio):
+            output_audio = os.path.abspath(output_audio)
+
+        # Inform the user whether voice cloning was used
+        is_cloned = output_audio is not None and output_audio.endswith(".wav")
+        status_msg = (
+            "✅ Done! 🎤 Output is in your voice (XTTS v2 voice cloning)."
+            if is_cloned
+            else "✅ Done! (Used standard neural voice — XTTS unavailable or loading.)"
+        )
+        return transcribed, translated, output_audio, status_msg
 
     except Exception as e:
         return "", "", None, f"❌ Error: {str(e)}"
@@ -263,14 +277,14 @@ HEADER_HTML = """
     <span style="color:#48D0C5; font-size:1rem; line-height:2;">→</span>
     <span class="pill pill-active">🌐 Machine Translation</span>
     <span style="color:#48D0C5; font-size:1rem; line-height:2;">→</span>
-    <span class="pill pill-active">🔊 Neural TTS (Edge-TTS)</span>
+    <span class="pill pill-active">🔊 Voice Cloning (XTTS v2)</span>
   </div>
 </div>
 """
 
 FOOTER_HTML = """
 <div id="app-footer">
-  Built with OpenAI Whisper · Google Translate · Microsoft Edge Neural TTS · Gradio<br>
+  Built with OpenAI Whisper · Google Translate · Coqui XTTS v2 (Voice Cloning) · Gradio<br>
   ESLSCA University Egypt — Speech Processing Final Project
 </div>
 """
@@ -411,7 +425,7 @@ with gr.Blocks(title="Speech-to-Speech Translation | EN ↔ AR") as demo:
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    demo.launch(
+    demo.queue().launch(
         server_name="0.0.0.0",
         share=False,
         inbrowser=True,
@@ -420,4 +434,5 @@ if __name__ == "__main__":
             primary_hue="violet",
             neutral_hue="slate",
         ),
+        max_threads=10,
     )

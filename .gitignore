@@ -1,7 +1,23 @@
+# Python
 __pycache__/
-.vscode/
-*.pyc
+*.py[cod]
+*$py.class
+venv/
+venv310/
+.env
+
+# Project specific
 data/
 *.wav
+*.mp3
 *.ogg
-venv/
+*.m4a
+
+# Model downloads (Hugging Face / Coqui)
+**/tts_models/
+**/whisper_models/
+
+# IDEs
+.vscode/
+.idea/
+.DS_Store
