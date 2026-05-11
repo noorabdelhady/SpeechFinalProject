@@ -60,7 +60,7 @@ Run the app and open your browser at `http://localhost:7860`.
 
 ### Prerequisites
 
-- Python 3.10 or higher
+- Python 3.10 
 - `pip`
 - An active internet connection (for Machine Translation and Edge-TTS)
 - A microphone (optional, for real-time recording)
